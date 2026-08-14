@@ -1,0 +1,625 @@
+/* ================================================================
+   RetailFlow POS - Design System & Global Stylesheet (QSS)
+   Role: Senior Software UI/UX Designer
+   Theme: Modern Clean Light Studio (High Contrast, Accessible, High Usability)
+   ================================================================ */
+
+/* ─── Global Reset & Base Typography ─── */
+* {
+    font-family: "Inter", "Segoe UI", -apple-system, sans-serif;
+    outline: none;
+}
+
+QMainWindow {
+    background-color: #f8fafc;
+}
+
+/* ─── Sidebar Navigation ─── */
+#sidebar {
+    background-color: #0f172a;
+    border-right: 1px solid #1e293b;
+}
+
+QScrollArea#sidebarScrollArea {
+    background: transparent;
+    border: none;
+}
+
+QScrollArea#sidebarScrollArea > QWidget > QWidget {
+    background: transparent;
+}
+
+QScrollArea#sidebarScrollArea QScrollBar:vertical {
+    background: transparent;
+    width: 4px;
+    margin: 0px;
+}
+
+QScrollArea#sidebarScrollArea QScrollBar::handle:vertical {
+    background: #334155;
+    border-radius: 2px;
+    min-height: 20px;
+}
+
+QScrollArea#sidebarScrollArea QScrollBar::handle:vertical:hover {
+    background: #64748b;
+}
+
+QScrollArea#sidebarScrollArea QScrollBar::add-line:vertical,
+QScrollArea#sidebarScrollArea QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+#sidebarHeader {
+    background-color: #020617;
+    border-bottom: 1px solid #1e293b;
+}
+
+#sidebarTitle {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+#sidebarToggleBtn {
+    background-color: #1e293b;
+    color: #94a3b8;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+#sidebarToggleBtn:hover {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+
+/* NavItemWidget */
+QFrame.navItemWidget {
+    background-color: transparent;
+    border-radius: 8px;
+    margin: 1px 8px;
+}
+
+QFrame.navItemWidget:hover {
+    background-color: #172033;
+}
+
+QFrame.navItemWidget[active="true"] {
+    background-color: #1e293b;
+}
+
+QFrame.navActiveIndicator {
+    background-color: transparent;
+    border-radius: 2px;
+}
+
+QFrame.navActiveIndicator[active="true"] {
+    background-color: #2563eb;
+}
+
+QLabel.navItemText {
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+QLabel.navItemText[active="true"] {
+    color: #f8fafc;
+    font-weight: 700;
+}
+
+/* Sidebar Section Label */
+.sidebarGroupLabel {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+}
+
+/* Sidebar Bottom Profile Card */
+#sidebarProfileCard {
+    background-color: #020617;
+    border-top: 1px solid #1e293b;
+}
+
+#sidebarProfileCard:hover {
+    background-color: #1e293b;
+}
+
+#sidebarAvatar {
+    background-color: #2563eb;
+    color: #ffffff;
+    border-radius: 16px;
+    font-weight: 800;
+    font-size: 12px;
+    border: none;
+}
+
+#sidebarProfileName {
+    color: #f8fafc;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#sidebarProfileRole {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+#sidebarFooterVersion {
+    color: #475569;
+    font-size: 10px;
+    font-weight: 500;
+    background-color: #020617;
+}
+
+/* ─── Top Navigation Bar ─── */
+#topbar {
+    background-color: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+#pageTitle {
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}
+
+#topbarUserButton {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#topbarUserButton:hover {
+    background-color: #e2e8f0;
+    color: #0f172a;
+}
+
+/* ─── Content Workspace Area ─── */
+#contentArea {
+    background-color: #f8fafc;
+}
+
+#placeholderLabel {
+    color: #94a3b8;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+/* ─── Standard Buttons ─── */
+QPushButton {
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton#primaryButton {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: 1px solid #1d4ed8;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #1d4ed8;
+}
+
+QPushButton#primaryButton:pressed {
+    background-color: #1e40af;
+}
+
+QPushButton#dangerButton {
+    background-color: #ef4444;
+    color: #ffffff;
+    border: 1px solid #dc2626;
+}
+
+QPushButton#dangerButton:hover {
+    background-color: #dc2626;
+}
+
+QPushButton#secondaryButton {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+}
+
+QPushButton#secondaryButton:hover {
+    background-color: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+/* ─── Form Inputs & Dropdowns ─── */
+QLineEdit, QSpinBox, QDoubleSpinBox {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background-color: #ffffff;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+    border-color: #2563eb;
+    background-color: #ffffff;
+    color: #0f172a;
+}
+
+QLineEdit:disabled {
+    background-color: #f1f5f9;
+    color: #94a3b8;
+}
+
+/* ─── Dropdown Selectors (QComboBox) ─── */
+QComboBox {
+    padding: 6px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background-color: #ffffff;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+QComboBox:hover {
+    border-color: #94a3b8;
+}
+
+QComboBox:focus {
+    border-color: #2563eb;
+    background-color: #ffffff;
+    color: #0f172a;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 28px;
+    border-left: none;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+QComboBox::down-arrow {
+    image: url(presentation/resources/icons/chevron-down.svg);
+    width: 14px;
+    height: 14px;
+    margin-right: 8px;
+}
+
+QComboBox::down-arrow:hover {
+    image: url(presentation/resources/icons/chevron-down-hover.svg);
+}
+
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    selection-background-color: #eff6ff;
+    selection-color: #2563eb;
+    padding: 4px;
+    outline: none;
+}
+
+QComboBox QAbstractItemView::item {
+    min-height: 30px;
+    padding: 6px 12px;
+    color: #0f172a;
+    background-color: #ffffff;
+    border-radius: 4px;
+}
+
+QComboBox QAbstractItemView::item:hover,
+QComboBox QAbstractItemView::item:selected {
+    background-color: #eff6ff;
+    color: #2563eb;
+    font-weight: 600;
+}
+
+/* ─── Data Tables (QTableView & QTableWidget) ─── */
+QTableView, QTableWidget {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    gridline-color: #f1f5f9;
+    font-size: 13px;
+    selection-background-color: #eff6ff;
+    selection-color: #0f172a;
+    alternate-background-color: #f8fafc;
+}
+
+QTableWidget::item, QTableView::item {
+    color: #0f172a;
+    background-color: #ffffff;
+    padding: 6px 10px;
+}
+
+QTableWidget::item:selected, QTableView::item:selected {
+    background-color: #eff6ff;
+    color: #0f172a;
+}
+
+QTableWidget::item:hover, QTableView::item:hover {
+    background-color: #f0f7ff;
+}
+
+QHeaderView::section {
+    background-color: #f1f5f9;
+    color: #64748b;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 2px solid #e2e8f0;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+/* ─── Products Page & Module Component Styles ─── */
+#pageHeaderTitle {
+    color: #0f172a;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+}
+
+#pageHeaderSubtitle {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+#metricCardTitle {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+#metricCardValue {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+#metricCardCaption {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+#paginationInfo, #rowsPerPageLabel {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* ─── Dashboard Modern Card Table Styles ─── */
+QTableWidget.dashboardCardTable {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    outline: none;
+}
+
+QTableWidget.dashboardCardTable::item {
+    border-bottom: 1px solid #f1f5f9;
+    padding: 0px;
+    background-color: #ffffff;
+}
+
+QTableWidget.dashboardCardTable::item:hover {
+    background-color: #f8fafc;
+}
+
+QTableWidget.dashboardCardTable QScrollBar:vertical {
+    background: transparent;
+    width: 6px;
+    margin: 6px 2px 6px 0px;
+    border-radius: 3px;
+}
+
+QTableWidget.dashboardCardTable QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    min-height: 24px;
+    border-radius: 3px;
+}
+
+QTableWidget.dashboardCardTable QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
+}
+
+QTableWidget.dashboardCardTable QScrollBar::add-line:vertical,
+QTableWidget.dashboardCardTable QScrollBar::sub-line:vertical,
+QTableWidget.dashboardCardTable QScrollBar::add-page:vertical,
+QTableWidget.dashboardCardTable QScrollBar::sub-page:vertical {
+    background: transparent;
+    height: 0px;
+}
+
+QFrame.dashRowCard {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+}
+
+QFrame.dashRowCard:hover {
+    background-color: #f8fafc;
+}
+
+/* ─── POS Page Component Styles ─── */
+#catalogHeader, #cartTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+#posSearchInput {
+    padding: 6px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background-color: #ffffff;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+#posSearchInput:focus {
+    border-color: #2563eb;
+    background-color: #ffffff;
+    color: #0f172a;
+}
+
+/* Quick Cash Tender Pills */
+QPushButton.quickCashPill {
+    background-color: #ffffff;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+}
+
+QPushButton.quickCashPill:hover {
+    background-color: #eff6ff;
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+/* Cart Quantity Steppers */
+QPushButton.cartQtyBtn {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+QPushButton.cartQtyBtn:hover {
+    background-color: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
+#posTotalLabel {
+    font-size: 12px;
+    font-weight: 800;
+    color: #047857;
+    letter-spacing: 0.5px;
+}
+
+#posTotalAmount {
+    font-size: 24px;
+    font-weight: 800;
+    color: #047857;
+    letter-spacing: -0.5px;
+}
+
+#btnCheckout {
+    background-color: #16a34a;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 800;
+    padding: 0px 14px;
+}
+
+#btnCheckout:hover {
+    background-color: #15803d;
+}
+
+#btnCheckout:disabled {
+    background-color: #e2e8f0;
+    color: #94a3b8;
+}
+
+/* ─── Scroll Bars ─── */
+QScrollBar:vertical {
+    background: #f1f5f9;
+    width: 8px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    border-radius: 4px;
+    min-height: 32px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* ─── Dialog Windows & QMessageBox High Contrast Reset ─── */
+QDialog, QMessageBox {
+    background-color: #ffffff;
+    color: #0f172a;
+}
+
+QMessageBox QLabel {
+    color: #0f172a;
+    font-size: 13px;
+}
+
+QMessageBox QPushButton {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 13px;
+    min-width: 70px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+/* ─── Product Form Dialog & Text Edit Controls ─── */
+QPlainTextEdit {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+QPlainTextEdit:focus {
+    border-color: #2563eb;
+    background-color: #ffffff;
+}
+
+#productFormDialog QLabel {
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* ─── Clean Price & Numeric Inputs (Hidden Spin Buttons) ─── */
+QDoubleSpinBox#cleanPriceInput::up-button, QDoubleSpinBox#cleanPriceInput::down-button,
+QSpinBox#cleanSpinInput::up-button, QSpinBox#cleanSpinInput::down-button {
+    width: 0px;
+    height: 0px;
+    border: none;
+    background: transparent;
+}
