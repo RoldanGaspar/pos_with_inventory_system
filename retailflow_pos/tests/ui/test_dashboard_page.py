@@ -41,6 +41,7 @@ def dashboard_sample(db_session, user_with_permissions):
                 product_id=p1.id,
                 product_name=p1.name,
                 unit_price=p1.selling_price,
+                unit_cost=p1.cost_price,
                 quantity=2,
                 subtotal=Decimal("40.00"),
             )

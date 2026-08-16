@@ -70,20 +70,26 @@ def _ensure_directories() -> None:
 
 
 def _seed_if_needed() -> None:
-    """Seed default roles, permissions, users, and catalog on first run."""
+    """Seed default roles, permissions, users, store settings, and catalog on first run."""
     from infrastructure.database.seeders.auth_seeder import seed_auth
     from infrastructure.database.seeders.customer_seeder import seed_customers
+    from infrastructure.database.seeders.expense_seeder import seed_expenses
     from infrastructure.database.seeders.product_seeder import seed_products
+    from infrastructure.database.seeders.purchasing_seeder import seed_purchase_orders
+    from infrastructure.database.seeders.settings_seeder import seed_settings
     from infrastructure.database.seeders.supplier_seeder import seed_suppliers
     from infrastructure.database.session import create_session
 
     session = create_session()
     try:
         seed_auth(session)
+        seed_settings(session)
         if settings.is_development:
             seed_products(session)
             seed_customers(session)
             seed_suppliers(session)
+            seed_purchase_orders(session)
+            seed_expenses(session)
         else:
             logger.info("Skipping demo product catalog seeding (non-development environment).")
         session.commit()

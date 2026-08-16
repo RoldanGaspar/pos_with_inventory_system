@@ -19,6 +19,7 @@ from infrastructure.database.models.base import BaseEntity
 if TYPE_CHECKING:
     from infrastructure.database.models.auth import User
     from infrastructure.database.models.product import Product
+    from infrastructure.database.models.returns import SalesReturn
 
 
 class Sale(BaseEntity):
@@ -58,6 +59,9 @@ class Sale(BaseEntity):
     payments: Mapped[list["Payment"]] = relationship(
         "Payment", back_populates="sale", cascade="all, delete-orphan"
     )
+    returns: Mapped[list["SalesReturn"]] = relationship(
+        "SalesReturn", back_populates="sale"
+    )
 
     def __repr__(self) -> str:
         return f"<Sale(txn={self.transaction_number}, total={self.total_amount})>"
@@ -76,6 +80,9 @@ class SaleLineItem(BaseEntity):
     )
     product_name: Mapped[str] = mapped_column(String(150), nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0.00"), nullable=False
+    )
+    unit_cost: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), default=Decimal("0.00"), nullable=False
     )
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

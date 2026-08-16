@@ -65,6 +65,7 @@ class PaymentMethod(StrEnum):
     GCASH = "gcash"
     MAYA = "maya"
     BANK_TRANSFER = "bank_transfer"
+    CHECK = "check"
     STORE_CREDIT = "store_credit"
     GIFT_CARD = "gift_card"
     SPLIT = "split"
@@ -115,7 +116,27 @@ class CostingMethod(StrEnum):
     SPECIFIC_IDENTIFICATION = "specific_identification"
 
 
-# ─── Return Reason ───
+# ─── Return Management ───
+
+class ReturnStatus(StrEnum):
+    COMPLETED = "completed"
+
+
+class ReturnDisposition(StrEnum):
+    RESTOCK = "restock"
+    DAMAGED_WRITE_OFF = "damaged_write_off"
+
+
+class RefundMethod(StrEnum):
+    CASH = "cash"
+    ORIGINAL_METHOD = "original_method"
+
+
+class DerivedReturnState(StrEnum):
+    NONE = "none"
+    PARTIAL = "partial"
+    FULL = "full"
+
 
 class ReturnReason(StrEnum):
     DEFECTIVE = "defective"
@@ -131,3 +152,38 @@ class ReceiptWidth(StrEnum):
     MM_58 = "58mm"
     MM_80 = "80mm"
     A4 = "a4"
+
+
+# ─── Expense Management ───
+
+class ExpenseCategory(StrEnum):
+    UTILITIES = "utilities"
+    RENT = "rent"
+    SALARIES = "salaries"
+    SUPPLIES = "supplies"
+    MAINTENANCE = "maintenance"
+    TAXES_LICENSES = "taxes_licenses"
+    MARKETING = "marketing"
+    OTHER = "other"
+
+
+class ExpenseStatus(StrEnum):
+    PAID = "paid"
+    VOID = "void"
+
+
+class ExpenseSource(StrEnum):
+    MANUAL = "manual"
+    PAYROLL = "payroll"
+
+
+EXPENSE_CATEGORY_LABELS = {
+    ExpenseCategory.UTILITIES: "Utilities (Power, Water, Internet)",
+    ExpenseCategory.RENT: "Store & Warehouse Rent",
+    ExpenseCategory.SALARIES: "Staff Wages & Allowances",
+    ExpenseCategory.SUPPLIES: "Store Supplies & Packaging",
+    ExpenseCategory.MAINTENANCE: "Repairs & Maintenance",
+    ExpenseCategory.TAXES_LICENSES: "Taxes, Permits & Licenses",
+    ExpenseCategory.MARKETING: "Marketing & Advertising",
+    ExpenseCategory.OTHER: "Other Miscellaneous",
+}

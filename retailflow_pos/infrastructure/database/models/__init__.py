@@ -21,7 +21,11 @@ from infrastructure.database.models.product import (
     ProductBarcode,
     Unit,
 )
+from infrastructure.database.models.expense import Expense
+from infrastructure.database.models.purchasing import PurchaseOrder, PurchaseOrderItem
+from infrastructure.database.models.returns import SalesReturn, SalesReturnItem
 from infrastructure.database.models.sales import Payment, Sale, SaleLineItem
+from infrastructure.database.models.settings import StoreSettings
 from infrastructure.database.models.supplier import Supplier
 
 __all__ = [
@@ -42,7 +46,13 @@ __all__ = [
     "Inventory",
     "Customer",
     "Supplier",
+    "PurchaseOrder",
+    "PurchaseOrderItem",
+    "Expense",
     "Sale",
     "SaleLineItem",
     "Payment",
+    "SalesReturn",
+    "SalesReturnItem",
+    "StoreSettings",
 ]

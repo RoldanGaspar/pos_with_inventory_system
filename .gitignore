@@ -22,14 +22,20 @@ ENV/
 *.db
 *.sqlite
 *.sqlite3
-data/*.db
+**/data/
+data/
 
 # Logs, Backups, Exports & Reports
+**/logs/
 logs/
 *.log
+**/startup_log.txt
 startup_log.txt
+**/backups/
 backups/
+**/exports/
 exports/
+**/reports/
 reports/
 
 # IDE / OS specific

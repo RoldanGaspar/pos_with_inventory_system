@@ -67,6 +67,7 @@ class SaleLineItemDTO:
     unit_price: Decimal
     quantity: int
     subtotal: Decimal
+    unit_cost: Decimal = Decimal("0.00")
 
 
 @dataclass

@@ -74,7 +74,10 @@ def init_database() -> None:
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
 
-    logger.info("Database initialized: all tables created")
+    # Run safe schema migrations for existing databases
+    _migrate_schema(engine)
+
+    logger.info("Database initialized: all tables created and migrations verified")
 
 
 def _import_models() -> None:
@@ -98,8 +101,79 @@ def _import_models() -> None:
         Unit,
         ProductBarcode,
     )  # noqa: F401
+    from infrastructure.database.models.customer import Customer  # noqa: F401
+    from infrastructure.database.models.expense import Expense  # noqa: F401
     from infrastructure.database.models.inventory import Inventory  # noqa: F401
+    from infrastructure.database.models.purchasing import PurchaseOrder, PurchaseOrderItem  # noqa: F401
+    from infrastructure.database.models.returns import SalesReturn, SalesReturnItem  # noqa: F401
     from infrastructure.database.models.sales import Sale, SaleLineItem, Payment  # noqa: F401
+    from infrastructure.database.models.settings import StoreSettings  # noqa: F401
+    from infrastructure.database.models.supplier import Supplier  # noqa: F401
+
+
+def _migrate_schema(engine: Engine) -> None:
+    """Apply safe schema migrations/upgrades for existing databases."""
+    from sqlalchemy import inspect, text
+    from infrastructure.database.models.returns import SalesReturn, SalesReturnItem
+    from infrastructure.database.models.settings import StoreSettings
+
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    # 1. Backfill 'unit_cost' on sale_line_items if missing
+    if "sale_line_items" in existing_tables:
+        columns = [col["name"] for col in inspector.get_columns("sale_line_items")]
+        if "unit_cost" not in columns:
+            logger.info("Migrating schema: adding 'unit_cost' column to 'sale_line_items' table...")
+            with engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE sale_line_items ADD COLUMN unit_cost NUMERIC(12, 2) DEFAULT 0.00 NOT NULL")
+                )
+                conn.execute(
+                    text(
+                        """
+                        UPDATE sale_line_items
+                        SET unit_cost = (
+                            SELECT COALESCE(products.cost_price, 0.00)
+                            FROM products
+                            WHERE products.id = sale_line_items.product_id
+                        )
+                        WHERE unit_cost = 0.00 OR unit_cost IS NULL
+                        """
+                    )
+                )
+            logger.info("Schema migration complete: 'unit_cost' column added and backfilled from product catalog.")
+
+    # 2. Ensure sales_returns and sales_return_items tables exist on pre-existing databases
+    if "sales_returns" not in existing_tables:
+        logger.info("Migrating schema: creating 'sales_returns' table...")
+        SalesReturn.__table__.create(bind=engine, checkfirst=True)
+    else:
+        columns = [col["name"] for col in inspector.get_columns("sales_returns")]
+        if "reason_code" not in columns:
+            logger.info("Migrating schema: adding 'reason_code' and 'reason_notes' columns to 'sales_returns'...")
+            with engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE sales_returns ADD COLUMN reason_code VARCHAR(50) DEFAULT 'other' NOT NULL")
+                )
+                conn.execute(
+                    text("ALTER TABLE sales_returns ADD COLUMN reason_notes VARCHAR(255)")
+                )
+        if "idempotency_key" not in columns:
+            logger.info("Migrating schema: adding 'idempotency_key' column to 'sales_returns'...")
+            with engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE sales_returns ADD COLUMN idempotency_key VARCHAR(64)")
+                )
+
+    if "sales_return_items" not in existing_tables:
+        logger.info("Migrating schema: creating 'sales_return_items' table...")
+        SalesReturnItem.__table__.create(bind=engine, checkfirst=True)
+
+    # 3. Ensure store_settings table exists on pre-existing databases
+    if "store_settings" not in existing_tables:
+        logger.info("Migrating schema: creating 'store_settings' table...")
+        StoreSettings.__table__.create(bind=engine, checkfirst=True)
 
 
 def dispose_engine() -> None:

@@ -1,12 +1,14 @@
 """
 RetailFlow POS - Sale Details & Thermal Receipt Viewer Dialog
 Displays authentic 80mm thermal POS receipt layout with line items, tax breakdown,
-cashier details, and reprint actions.
+cashier details, reprint actions, and integrated Return History / Return Processing.
 """
 
 from decimal import Decimal
+from typing import List, Optional
 
 from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -21,20 +23,36 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from application.dto.returns_dto import SalesReturnDTO
 from application.dto.sales_dto import SaleResponseDTO
+from application.services.auth_service import AuthenticationService
+from application.services.returns_service import ReturnsService
+from infrastructure.database.models.auth import User
+from presentation.dialogs.return_details_dialog import ReturnDetailsDialog
 from presentation.styles.icons import IconManager
 
 
 class SaleDetailsDialog(QDialog):
-    """Modal displaying thermal receipt breakdown for a completed sale."""
+    """Modal displaying thermal receipt breakdown and return history for a completed sale."""
 
-    def __init__(self, sale: SaleResponseDTO, parent: QWidget | None = None):
+    def __init__(
+        self,
+        sale: SaleResponseDTO,
+        returns_service: Optional[ReturnsService] = None,
+        auth_service: Optional[AuthenticationService] = None,
+        current_user: Optional[User] = None,
+        parent: Optional[QWidget] = None,
+    ):
         super().__init__(parent)
         self.sale = sale
+        self._returns_service = returns_service
+        self._auth_service = auth_service
+        self._current_user = current_user
         self._drag_pos = QPoint()
 
         self.setWindowTitle(f"Sale Receipt — #{sale.transaction_number}")
-        self.setFixedSize(520, 640)
+        self.setMinimumSize(480, 520)
+        self.resize(540, 680)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
 
@@ -119,168 +137,143 @@ class SaleDetailsDialog(QDialog):
                 border: none;
                 border-radius: 6px;
             }
-            QPushButton:hover { background-color: #f1f5f9; }
+            QPushButton:hover {
+                background-color: #fee2e2;
+            }
         """)
         btn_close.clicked.connect(self.reject)
         header_layout.addWidget(btn_close)
 
         container_layout.addWidget(header_card)
 
-        # ── 2. Scrollable Thermal Receipt Card ──
+        # ── 2. Thermal Paper Scroll Area ──
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_area.setStyleSheet("QScrollArea { background-color: #f1f5f9; border: none; }")
+        scroll_area.setStyleSheet("background-color: #f1f5f9; border: none;")
 
         receipt_wrapper = QWidget()
+        receipt_wrapper.setStyleSheet("background-color: #f1f5f9;")
         receipt_wrapper_l = QVBoxLayout(receipt_wrapper)
         receipt_wrapper_l.setContentsMargins(18, 14, 18, 14)
-        receipt_wrapper_l.setAlignment(Qt.AlignHCenter)
+        receipt_wrapper_l.setSpacing(12)
 
-        # White Paper Receipt Box
+        # White Paper Sheet
         receipt_paper = QFrame()
-        receipt_paper.setFixedWidth(420)
         receipt_paper.setStyleSheet("""
             QFrame {
                 background-color: #ffffff;
                 border: 1px solid #e2e8f0;
                 border-radius: 8px;
-                padding: 16px;
             }
         """)
         paper_l = QVBoxLayout(receipt_paper)
-        paper_l.setContentsMargins(0, 0, 0, 0)
+        paper_l.setContentsMargins(16, 16, 16, 16)
         paper_l.setSpacing(8)
 
-        # Receipt Brand Header
-        brand_l = QVBoxLayout()
-        brand_l.setSpacing(2)
-        brand_l.setAlignment(Qt.AlignCenter)
+        # Store Header
+        store_title = QLabel("RETAILFLOW POS STORE")
+        store_title.setAlignment(Qt.AlignCenter)
+        store_title.setStyleSheet("font-size: 14px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px;")
+        paper_l.addWidget(store_title)
 
-        store_name = QLabel("RETAILFLOW POS STORE")
-        store_name.setAlignment(Qt.AlignCenter)
-        store_name.setStyleSheet("font-size: 15px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px;")
-        brand_l.addWidget(store_name)
+        store_sub = QLabel("Official Sales Invoice / Thermal Receipt")
+        store_sub.setAlignment(Qt.AlignCenter)
+        store_sub.setStyleSheet("font-size: 10px; color: #64748b;")
+        paper_l.addWidget(store_sub)
 
-        doc_type = QLabel("OFFICIAL SALES RECEIPT")
-        doc_type.setAlignment(Qt.AlignCenter)
-        doc_type.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748b; letter-spacing: 1px;")
-        brand_l.addWidget(doc_type)
+        # Metadata Row
+        meta_card = QFrame()
+        meta_card.setStyleSheet("background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 6px 8px;")
+        meta_l = QVBoxLayout(meta_card)
+        meta_l.setSpacing(3)
 
-        vat_reg = QLabel("VAT Reg. TIN: 000-123-456-789")
-        vat_reg.setAlignment(Qt.AlignCenter)
-        vat_reg.setStyleSheet("font-size: 10px; color: #94a3b8;")
-        brand_l.addWidget(vat_reg)
-        paper_l.addLayout(brand_l)
-
-        # Divider Dash
-        dash1 = QLabel("--------------------------------------------------")
-        dash1.setAlignment(Qt.AlignCenter)
-        dash1.setStyleSheet("color: #cbd5e1; font-family: monospace; font-size: 10px;")
-        paper_l.addWidget(dash1)
-
-        # Meta info
-        meta_grid = QVBoxLayout()
-        meta_grid.setSpacing(3)
-
-        def make_meta_row(k: str, v: str):
+        for label_text, val_text in [
+            ("Terminal Ref:", f"POS-T1 · {self.sale.transaction_number}"),
+            ("Payment Method:", f"{self.sale.payment_method.upper()}"),
+            ("Status:", f"{self.sale.status.upper()}"),
+        ]:
             r = QHBoxLayout()
-            kl = QLabel(k)
-            kl.setStyleSheet("font-size: 11px; color: #64748b; font-weight: 500;")
-            vl = QLabel(v)
-            vl.setStyleSheet("font-size: 11px; color: #0f172a; font-weight: 700;")
-            vl.setAlignment(Qt.AlignRight)
-            r.addWidget(kl)
-            r.addWidget(vl)
-            return r
+            lbl = QLabel(label_text)
+            lbl.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 600;")
+            val = QLabel(val_text)
+            val.setStyleSheet("color: #0f172a; font-size: 10px; font-weight: 700;")
+            val.setAlignment(Qt.AlignRight)
+            r.addWidget(lbl)
+            r.addWidget(val)
+            meta_l.addLayout(r)
 
-        meta_grid.addLayout(make_meta_row("TXN #:", self.sale.transaction_number))
-        meta_grid.addLayout(make_meta_row("Date/Time:", self._format_datetime(self.sale.created_at)))
-        meta_grid.addLayout(make_meta_row("Payment:", self.sale.payment_method.upper()))
-        meta_grid.addLayout(make_meta_row("Status:", "COMPLETED"))
-        paper_l.addLayout(meta_grid)
+        paper_l.addWidget(meta_card)
 
-        # Divider Dash
-        dash2 = QLabel("--------------------------------------------------")
-        dash2.setAlignment(Qt.AlignCenter)
-        dash2.setStyleSheet("color: #cbd5e1; font-family: monospace; font-size: 10px;")
-        paper_l.addWidget(dash2)
+        # Line Items Table
+        table_label = QLabel("PURCHASED ITEMS")
+        table_label.setStyleSheet("font-size: 10px; font-weight: 800; color: #475569; letter-spacing: 0.5px; margin-top: 4px;")
+        paper_l.addWidget(table_label)
 
-        # Items Table
-        self.tbl_items = QTableWidget()
-        self.tbl_items.setColumnCount(4)
-        self.tbl_items.setHorizontalHeaderLabels(["ITEM", "PRICE", "QTY", "TOTAL"])
-        self.tbl_items.verticalHeader().setVisible(False)
-        self.tbl_items.setShowGrid(False)
-        self.tbl_items.setStyleSheet("""
+        table = QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["Item Description", "Qty", "Price", "Total"])
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        table.verticalHeader().setVisible(False)
+        table.setSelectionMode(QTableWidget.NoSelection)
+        table.setFocusPolicy(Qt.NoFocus)
+        table.setStyleSheet("""
             QTableWidget {
                 background-color: #ffffff;
-                border: none;
-                font-size: 11px;
-                color: #0f172a;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                gridline-color: #f8fafc;
             }
             QHeaderView::section {
-                background-color: #ffffff;
-                color: #64748b;
+                background-color: #f8fafc;
+                color: #475569;
                 font-size: 9px;
                 font-weight: 800;
-                letter-spacing: 0.5px;
-                border: none;
-                border-bottom: 1px dashed #cbd5e1;
                 padding: 4px;
-            }
-            QTableWidget::item {
                 border: none;
-                padding: 2px 4px;
+                border-bottom: 1px solid #e2e8f0;
             }
         """)
 
-        header = self.tbl_items.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        table.setRowCount(len(self.sale.items))
+        for row_idx, item in enumerate(self.sale.items):
+            table.setRowHeight(row_idx, 28)
 
-        self.tbl_items.setRowCount(len(self.sale.items))
-        for row, item in enumerate(self.sale.items):
-            self.tbl_items.setRowHeight(row, 28)
+            desc = QTableWidgetItem(item.product_name)
+            desc.setForeground(QColor("#0f172a"))
+            table.setItem(row_idx, 0, desc)
 
-            name_item = QTableWidgetItem(item.product_name)
-            name_item.setFlags(Qt.ItemIsEnabled)
-            self.tbl_items.setItem(row, 0, name_item)
+            qty = QTableWidgetItem(f"{item.quantity}x")
+            qty.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            qty.setForeground(QColor("#64748b"))
+            table.setItem(row_idx, 1, qty)
 
-            price_item = QTableWidgetItem(f"₱{item.unit_price:.2f}")
-            price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            price_item.setFlags(Qt.ItemIsEnabled)
-            self.tbl_items.setItem(row, 1, price_item)
+            pr = QTableWidgetItem(f"₱{item.unit_price:,.2f}")
+            pr.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            pr.setForeground(QColor("#64748b"))
+            table.setItem(row_idx, 2, pr)
 
-            qty_item = QTableWidgetItem(str(item.quantity))
-            qty_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-            qty_item.setFlags(Qt.ItemIsEnabled)
-            self.tbl_items.setItem(row, 2, qty_item)
+            tot = QTableWidgetItem(f"₱{item.subtotal:,.2f}")
+            tot.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            tot.setForeground(QColor("#0f172a"))
+            table.setItem(row_idx, 3, tot)
 
-            sub_item = QTableWidgetItem(f"₱{item.subtotal:.2f}")
-            sub_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            sub_item.setFlags(Qt.ItemIsEnabled)
-            self.tbl_items.setItem(row, 3, sub_item)
+        table.setFixedHeight(min(160, 30 + len(self.sale.items) * 28))
+        paper_l.addWidget(table)
 
-        paper_l.addWidget(self.tbl_items)
-        self.tbl_items.setFixedHeight(min(200, len(self.sale.items) * 28 + 35))
-
-        # Divider Dash
-        dash3 = QLabel("--------------------------------------------------")
-        dash3.setAlignment(Qt.AlignCenter)
-        dash3.setStyleSheet("color: #cbd5e1; font-family: monospace; font-size: 10px;")
-        paper_l.addWidget(dash3)
-
-        # Financial Summary Section
-        summary_l = QVBoxLayout()
+        # Financial Summary
+        summary_card = QFrame()
+        summary_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px;")
+        summary_l = QVBoxLayout(summary_card)
         summary_l.setSpacing(3)
 
         for label_text, val_text in [
             ("Subtotal:", f"₱{self.sale.subtotal:,.2f}"),
-            ("Tax (12% VAT):", f"₱{self.sale.tax_amount:,.2f}"),
-            ("Discount:", f"-₱{self.sale.discount_amount:,.2f}" if self.sale.discount_amount > 0 else "₱0.00"),
+            ("Discount:", f"-₱{self.sale.discount_amount:,.2f}"),
+            ("Output VAT (12%):", f"₱{self.sale.tax_amount:,.2f}"),
         ]:
             r = QHBoxLayout()
             lbl = QLabel(label_text)
@@ -292,41 +285,29 @@ class SaleDetailsDialog(QDialog):
             r.addWidget(val)
             summary_l.addLayout(r)
 
-        # Total Paid Row
+        # Total Line
         tot_r = QHBoxLayout()
-        t_lbl = QLabel("TOTAL PAID:")
+        t_lbl = QLabel("TOTAL DUE:")
         t_lbl.setStyleSheet("font-size: 13px; font-weight: 800; color: #0f172a;")
         t_val = QLabel(f"₱{self.sale.total_amount:,.2f}")
-        t_val.setStyleSheet("font-size: 18px; font-weight: 800; color: #047857;")
+        t_val.setStyleSheet("font-size: 16px; font-weight: 800; color: #047857;")
         t_val.setAlignment(Qt.AlignRight)
         tot_r.addWidget(t_lbl)
         tot_r.addWidget(t_val)
         summary_l.addLayout(tot_r)
 
-        # Tender & Change
-        for label_text, val_text in [
-            ("Amount Tendered:", f"₱{self.sale.amount_paid:,.2f}"),
-            ("Change Given:", f"₱{self.sale.change_given:,.2f}"),
-        ]:
-            r = QHBoxLayout()
-            lbl = QLabel(label_text)
-            lbl.setStyleSheet("color: #64748b; font-size: 11px; font-weight: 500;")
-            val = QLabel(val_text)
-            val.setStyleSheet("color: #0f172a; font-size: 11px; font-weight: 700;")
-            val.setAlignment(Qt.AlignRight)
-            r.addWidget(lbl)
-            r.addWidget(val)
-            summary_l.addLayout(r)
-
-        paper_l.addLayout(summary_l)
-
-        # Footer Thank You Note
-        foot_note = QLabel("Thank you for shopping with us!\nPlease keep this receipt for returns.")
-        foot_note.setAlignment(Qt.AlignCenter)
-        foot_note.setStyleSheet("font-size: 10px; color: #94a3b8; margin-top: 10px;")
-        paper_l.addWidget(foot_note)
-
+        paper_l.addWidget(summary_card)
         receipt_wrapper_l.addWidget(receipt_paper)
+
+        # ── Return History Section ──
+        if self._returns_service:
+            self.history_card = QFrame()
+            self.history_card.setStyleSheet("background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;")
+            self.history_layout = QVBoxLayout(self.history_card)
+            self.history_layout.setSpacing(8)
+            receipt_wrapper_l.addWidget(self.history_card)
+            self._load_return_history()
+
         scroll_area.setWidget(receipt_wrapper)
         container_layout.addWidget(scroll_area, stretch=1)
 
@@ -346,27 +327,36 @@ class SaleDetailsDialog(QDialog):
         footer_layout.setContentsMargins(0, 0, 0, 0)
         footer_layout.setSpacing(10)
 
-        btn_print = QPushButton(" Re-print Receipt")
-        btn_print.setIcon(IconManager.get_pixmap("print", color="#2563eb", size=14))
-        btn_print.setFixedHeight(34)
-        btn_print.setCursor(Qt.PointingHandCursor)
-        btn_print.setStyleSheet("""
-            QPushButton {
-                background-color: #eff6ff;
-                color: #2563eb;
-                border: 1px solid #bfdbfe;
-                border-radius: 6px;
-                font-size: 12px;
-                font-weight: 700;
-                padding: 0px 14px;
-            }
-            QPushButton:hover {
-                background-color: #2563eb;
-                color: #ffffff;
-            }
-        """)
-        btn_print.clicked.connect(self._reprint_receipt)
-        footer_layout.addWidget(btn_print)
+        # Process Return Button
+        can_return = self._current_user and (self._current_user.is_admin() or self._current_user.has_permission("return_sales"))
+        if self._returns_service and can_return:
+            self.btn_process_return = QPushButton(" Process Return")
+            self.btn_process_return.setIcon(IconManager.get_pixmap("arrow-left", color="#2563eb", size=13))
+            self.btn_process_return.setFixedHeight(34)
+            self.btn_process_return.setCursor(Qt.PointingHandCursor)
+            self.btn_process_return.setStyleSheet("""
+                QPushButton {
+                    background-color: #eff6ff;
+                    color: #2563eb;
+                    border: 1px solid #bfdbfe;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    font-weight: 700;
+                    padding: 0px 14px;
+                }
+                QPushButton:hover {
+                    background-color: #2563eb;
+                    color: #ffffff;
+                }
+                QPushButton:disabled {
+                    background-color: #f1f5f9;
+                    color: #94a3b8;
+                    border-color: #e2e8f0;
+                }
+            """)
+            self.btn_process_return.clicked.connect(self._open_process_return)
+            footer_layout.addWidget(self.btn_process_return)
+            self._update_return_button_state()
 
         footer_layout.addStretch()
 
@@ -393,6 +383,107 @@ class SaleDetailsDialog(QDialog):
 
         container_layout.addWidget(footer_card)
 
+    def _load_return_history(self):
+        """Fetch and render completed returns for this sale."""
+        while self.history_layout.count():
+            item = self.history_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        try:
+            returns = self._returns_service.get_returns_for_sale(self.sale.id, actor=self._current_user)
+
+            hdr_row = QHBoxLayout()
+            lbl_hdr = QLabel(f"RETURN HISTORY ({len(returns)})")
+            lbl_hdr.setStyleSheet("color: #475569; font-size: 10px; font-weight: 800; letter-spacing: 0.5px;")
+            hdr_row.addWidget(lbl_hdr)
+            hdr_row.addStretch()
+            self.history_layout.addLayout(hdr_row)
+
+            if not returns:
+                lbl_none = QLabel("No return records for this transaction.")
+                lbl_none.setStyleSheet("color: #94a3b8; font-size: 11px; font-style: italic;")
+                self.history_layout.addWidget(lbl_none)
+                return
+
+            for r in returns:
+                r_card = QFrame()
+                r_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px;")
+                r_layout = QHBoxLayout(r_card)
+                r_layout.setContentsMargins(0, 0, 0, 0)
+
+                v_info = QVBoxLayout()
+                v_info.setSpacing(2)
+
+                lbl_num = QLabel(f"Voucher #{r.return_number}  ·  {r.return_date}")
+                lbl_num.setStyleSheet("color: #0f172a; font-size: 11px; font-weight: 700; font-family: 'Consolas', monospace;")
+                v_info.addWidget(lbl_num)
+
+                lbl_meta = QLabel(f"Refunded: ₱{r.total_refund_amount:,.2f} ({r.refund_payment_method.title()}) · Cashier: {r.cashier_name}")
+                lbl_meta.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 500;")
+                v_info.addWidget(lbl_meta)
+                r_layout.addLayout(v_info, 1)
+
+                btn_view = QPushButton("View Details")
+                btn_view.setFixedHeight(26)
+                btn_view.setCursor(Qt.PointingHandCursor)
+                btn_view.setStyleSheet("""
+                    QPushButton {
+                        background-color: #ffffff;
+                        color: #2563eb;
+                        border: 1px solid #bfdbfe;
+                        border-radius: 4px;
+                        font-size: 10px;
+                        font-weight: 700;
+                        padding: 0 8px;
+                    }
+                    QPushButton:hover { background-color: #eff6ff; }
+                """)
+                btn_view.clicked.connect(lambda checked, ret_dto=r: self._open_return_details(ret_dto))
+                r_layout.addWidget(btn_view)
+                self.history_layout.addWidget(r_card)
+
+        except Exception as e:
+            lbl_err = QLabel(f"Could not load returns: {str(e)}")
+            lbl_err.setStyleSheet("color: #b91c1c; font-size: 10px;")
+            self.history_layout.addWidget(lbl_err)
+
+    def _update_return_button_state(self):
+        """Disable Process Return button if sale is already fully returned."""
+        if not hasattr(self, "btn_process_return"):
+            return
+        try:
+            summary = self._returns_service.get_sale_return_summary(self.sale.id, actor=self._current_user)
+            if summary.derived_state == "full":
+                self.btn_process_return.setEnabled(False)
+                self.btn_process_return.setToolTip("Sale has already been fully returned.")
+            else:
+                self.btn_process_return.setEnabled(True)
+                self.btn_process_return.setToolTip("")
+        except Exception:
+            pass
+
+    def _open_process_return(self):
+        """Open ProcessReturnDialog modal."""
+        from presentation.dialogs.process_return_dialog import ProcessReturnDialog
+        dlg = ProcessReturnDialog(
+            sale=self.sale,
+            current_user=self._current_user,
+            returns_service=self._returns_service,
+            auth_service=self._auth_service,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.Accepted and dlg.final_return_dto:
+            self._load_return_history()
+            self._update_return_button_state()
+            if self.parent() and hasattr(self.parent(), "load_sales"):
+                self.parent().load_sales()
+
+    def _open_return_details(self, return_dto: SalesReturnDTO):
+        """Open read-only ReturnDetailsDialog."""
+        dlg = ReturnDetailsDialog(return_dto=return_dto, parent=self)
+        dlg.exec()
+
     def _on_header_mouse_press(self, event):
         if event.button() == Qt.LeftButton:
             self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
@@ -402,9 +493,3 @@ class SaleDetailsDialog(QDialog):
         if event.buttons() == Qt.LeftButton:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
             event.accept()
-
-    def _reprint_receipt(self):
-        """Simulate re-printing receipt."""
-        from presentation.dialogs.sale_success_dialog import SaleSuccessDialog
-        dlg = SaleSuccessDialog(self.sale, self.parent())
-        dlg.exec()

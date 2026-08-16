@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMenu,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -23,9 +24,16 @@ from PySide6.QtWidgets import (
 )
 
 from application.services.audit_service import AuditService
+from application.services.auth_service import AuthenticationService
 from application.services.customer_service import CustomerService
+from application.services.expense_service import ExpenseService
 from application.services.product_service import ProductService
+from application.services.purchasing_service import PurchasingService
+from application.services.report_export_service import ReportExportService
+from application.services.report_service import ReportService
+from application.services.returns_service import ReturnsService
 from application.services.sales_service import SalesService
+from application.services.settings_service import SettingsService
 from application.services.supplier_service import SupplierService
 from application.services.user_service import UserService
 from infrastructure.database.models.auth import User
@@ -34,10 +42,14 @@ from presentation.styles.icons import IconManager
 from presentation.widgets.audit_page import AuditPage
 from presentation.widgets.customers_page import CustomersPage
 from presentation.widgets.dashboard_page import DashboardPage
+from presentation.widgets.expenses_page import ExpensesPage
 from presentation.widgets.inventory_page import InventoryPage
 from presentation.widgets.pos_page import POSPage
 from presentation.widgets.products_page import ProductsPage
+from presentation.widgets.purchasing_page import PurchasingPage
+from presentation.widgets.reports_page import ReportsPage
 from presentation.widgets.sales_page import SalesPage
+from presentation.widgets.settings_page import SettingsPage
 from presentation.widgets.suppliers_page import SuppliersPage
 from presentation.widgets.users_page import UsersPage
 
@@ -151,9 +163,10 @@ class NavItemWidget(QFrame):
 class MainWindow(QMainWindow):
     """Main application window with native PySide6 animated collapsible sidebar navigation and stacked content."""
 
-    def __init__(self, current_user=None, session_token=""):
+    def __init__(self, current_user=None, session_token="", session=None, settings_service=None):
         super().__init__()
-        self._session = create_session()
+        self._session = session or create_session()
+        self._owns_session = session is None
         if current_user is not None:
             current_user = self._session.get(User, current_user.id)
         self._current_user = current_user
@@ -164,6 +177,14 @@ class MainWindow(QMainWindow):
         self._audit_service = AuditService(self._session)
         self._customer_service = CustomerService(self._session)
         self._supplier_service = SupplierService(self._session)
+        self._purchasing_service = PurchasingService(self._session)
+        self._expense_service = ExpenseService(self._session)
+        self._report_service = ReportService(self._session, expense_service=self._expense_service)
+        self._report_export_service = ReportExportService(self._report_service)
+        self._returns_service = ReturnsService(self._session)
+        self._auth_service = AuthenticationService(self._session)
+        self._settings_service = settings_service or SettingsService(self._session)
+        self._settings_page = None
         self.setWindowTitle("RetailFlow POS")
 
         # Responsive minimum size for laptop and desktop monitors
@@ -281,6 +302,17 @@ class MainWindow(QMainWindow):
 
                     if key == "products" and not self._has_permission("view_products"):
                         nav_item.set_disabled_state(True)
+                    elif key == "expenses" and not self._has_permission("view_expenses"):
+                        nav_item.set_disabled_state(True)
+                    elif key == "reports" and not self._has_permission("view_reports"):
+                        nav_item.setVisible(False)
+                    elif key == "users" and not self._has_permission("manage_users"):
+                        nav_item.set_disabled_state(True)
+                    elif key == "audit" and not self._has_permission("view_audit_logs"):
+                        nav_item.set_disabled_state(True)
+                    elif key == "settings" and not self._has_permission("view_settings"):
+                        nav_item.set_disabled_state(True)
+                        nav_item.setVisible(False)
 
                     nav_item.clicked.connect(lambda k=key: self.navigate_to(k))
                     nav_layout.addWidget(nav_item)
@@ -435,7 +467,12 @@ class MainWindow(QMainWindow):
                     self._current_user, self._product_service, self._sales_service
                 )
             elif key == "sales":
-                page = SalesPage(self._current_user, self._sales_service)
+                page = SalesPage(
+                    self._current_user,
+                    self._sales_service,
+                    returns_service=self._returns_service,
+                    auth_service=self._auth_service,
+                )
             elif key == "inventory":
                 page = InventoryPage(self._current_user, self._product_service)
             elif key == "users":
@@ -446,6 +483,27 @@ class MainWindow(QMainWindow):
                 page = CustomersPage(self._current_user, self._customer_service)
             elif key == "suppliers":
                 page = SuppliersPage(self._current_user, self._supplier_service)
+            elif key == "purchasing":
+                page = PurchasingPage(
+                    self._current_user,
+                    self._purchasing_service,
+                    self._supplier_service,
+                    self._product_service,
+                )
+            elif key == "expenses":
+                page = ExpensesPage(self._current_user, self._expense_service)
+            elif key == "reports":
+                page = ReportsPage(
+                    current_user=self._current_user,
+                    report_service=self._report_service,
+                    report_export_service=self._report_export_service,
+                )
+            elif key == "settings":
+                page = SettingsPage(
+                    current_user=self._current_user,
+                    settings_service=self._settings_service,
+                )
+                self._settings_page = page
             else:
                 page = QWidget()
                 page_layout = QVBoxLayout(page)
@@ -597,10 +655,11 @@ class MainWindow(QMainWindow):
         menu.addAction(hdr_action)
         menu.addSeparator()
 
-        settings_action = QAction("Settings", self)
-        settings_action.setIcon(IconManager.get_icon("settings", color="#475569", size=16))
-        settings_action.triggered.connect(lambda: self.navigate_to("settings"))
-        menu.addAction(settings_action)
+        if self._has_permission("view_settings"):
+            settings_action = QAction("Settings", self)
+            settings_action.setIcon(IconManager.get_icon("settings", color="#475569", size=16))
+            settings_action.triggered.connect(lambda: self.navigate_to("settings"))
+            menu.addAction(settings_action)
 
         logout_action = QAction("Log Out", self)
         logout_action.setIcon(IconManager.get_icon("log_out", color="#dc2626", size=16))
@@ -614,6 +673,24 @@ class MainWindow(QMainWindow):
     def navigate_to(self, page_key: str):
         """Navigate to a page by its key."""
         if page_key == self._current_page:
+            return
+
+        # 1. Navigation leave guard for unsaved settings changes
+        if self._current_page == "settings" and getattr(self, "_settings_page", None) is not None:
+            if self._settings_page.has_unsaved_changes():
+                reply = QMessageBox.warning(
+                    self,
+                    "Unsaved Settings Changes",
+                    "You have unsaved Settings changes.\n\nDo you want to discard your changes and continue?",
+                    QMessageBox.Discard | QMessageBox.Cancel,
+                    QMessageBox.Cancel,
+                )
+                if reply == QMessageBox.Cancel:
+                    return
+                self._settings_page.discard_changes()
+
+        # 2. Permission check for target page
+        if page_key == "settings" and not self._has_permission("view_settings"):
             return
 
         self._current_page = page_key
@@ -650,11 +727,28 @@ class MainWindow(QMainWindow):
 
     def _has_permission(self, code: str) -> bool:
         """Check the current user's permission."""
-        return bool(self._current_user and self._current_user.has_permission(code))
+        if not self._current_user:
+            return False
+        if hasattr(self._current_user, "is_admin") and self._current_user.is_admin():
+            return True
+        return bool(self._current_user.has_permission(code))
 
     def closeEvent(self, event):  # noqa: N802
-        """Close the window-owned database session on exit."""
-        self._session.close()
+        """Close the window-owned database session on exit after prompting for unsaved settings."""
+        if getattr(self, "_settings_page", None) is not None and self._settings_page.has_unsaved_changes():
+            reply = QMessageBox.warning(
+                self,
+                "Unsaved Settings Changes",
+                "You have unsaved Settings changes.\n\nDo you want to discard your changes and exit?",
+                QMessageBox.Discard | QMessageBox.Cancel,
+                QMessageBox.Cancel,
+            )
+            if reply == QMessageBox.Cancel:
+                event.ignore()
+                return
+
+        if getattr(self, "_owns_session", True):
+            self._session.close()
         super().closeEvent(event)
 
     def get_current_user_display(self) -> str:

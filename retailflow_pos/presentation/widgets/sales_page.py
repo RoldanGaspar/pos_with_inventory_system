@@ -1,10 +1,11 @@
 """
 RetailFlow POS - Sales History & Transactions Page
 Provides sales history searching, payment method filtering, live sales metrics,
-and thermal receipt inspection & reprint workflows.
+derived return badges, and thermal receipt inspection & reprint workflows.
 """
 
 from decimal import Decimal
+from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
@@ -23,6 +24,8 @@ from PySide6.QtWidgets import (
 )
 
 from application.dto.sales_dto import SaleResponseDTO
+from application.services.auth_service import AuthenticationService
+from application.services.returns_service import ReturnsService
 from application.services.sales_service import SalesService
 from infrastructure.database.models.auth import User
 from presentation.dialogs.sale_details_dialog import SaleDetailsDialog
@@ -32,17 +35,21 @@ from presentation.widgets.metric_card import MetricCardWidget
 
 
 class SalesPage(QWidget):
-    """Sales History & Receipt Search Page."""
+    """Sales History & Receipt Search Page with Integrated Return Status Badges."""
 
     def __init__(
         self,
         current_user: User,
         sales_service: SalesService,
+        returns_service: Optional[ReturnsService] = None,
+        auth_service: Optional[AuthenticationService] = None,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self._user = current_user
         self._sales_service = sales_service
+        self._returns_service = returns_service
+        self._auth_service = auth_service
         self._sales_list: list[SaleResponseDTO] = []
         self._active_filter_chip = "all"
 
@@ -123,27 +130,27 @@ class SalesPage(QWidget):
         )
         self.card_aov = MetricCardWidget(
             title="AVG. ORDER VALUE",
-            icon_name="tag",
-            accent_color="#d97706",
-            badge_bg="#fffbeb",
+            icon_name="wallet",
+            accent_color="#7c3aed",
+            badge_bg="#f5f3ff",
         )
         self.card_rate = MetricCardWidget(
-            title="COMPLETION RATE",
-            icon_name="clock",
-            accent_color="#4f46e5",
-            badge_bg="#e0e7ff",
+            title="FULFILLMENT RATE",
+            icon_name="check",
+            accent_color="#0284c7",
+            badge_bg="#e0f2fe",
         )
 
-        for card in [self.card_revenue, self.card_orders, self.card_aov, self.card_rate]:
-            metrics_layout.addWidget(card)
-
+        metrics_layout.addWidget(self.card_revenue)
+        metrics_layout.addWidget(self.card_orders)
+        metrics_layout.addWidget(self.card_aov)
+        metrics_layout.addWidget(self.card_rate)
         main_layout.addLayout(metrics_layout)
 
-        # 3. Search & Filter Toolbar
+        # 3. Search & Filter Bar
         toolbar_card = QFrame()
-        toolbar_card.setObjectName("filterToolbar")
         toolbar_card.setStyleSheet("""
-            QFrame#filterToolbar {
+            QFrame {
                 background-color: #ffffff;
                 border: 1px solid #e2e8f0;
                 border-radius: 10px;
@@ -152,40 +159,47 @@ class SalesPage(QWidget):
         """)
         v_toolbar = QVBoxLayout(toolbar_card)
         v_toolbar.setContentsMargins(0, 0, 0, 0)
-        v_toolbar.setSpacing(8)
+        v_toolbar.setSpacing(10)
 
         toolbar_layout = QHBoxLayout()
         toolbar_layout.setSpacing(10)
 
         self.txt_search = QLineEdit()
-        self.txt_search.addAction(IconManager.get_icon("search", color="#64748b", size=16), QLineEdit.LeadingPosition)
-        self.txt_search.setPlaceholderText("Search transaction # (e.g. TXN-20260813-0001)...")
+        self.txt_search.setPlaceholderText("Search by transaction #, cashier, or customer...")
         self.txt_search.setFixedHeight(36)
         self.txt_search.setStyleSheet("""
             QLineEdit {
-                padding: 6px 12px;
+                background-color: #f8fafc;
                 border: 1px solid #cbd5e1;
                 border-radius: 8px;
-                background-color: #ffffff;
+                padding: 0 12px;
                 font-size: 13px;
                 color: #0f172a;
             }
-            QLineEdit:focus { border-color: #2563eb; }
+            QLineEdit:focus {
+                background-color: #ffffff;
+                border-color: #2563eb;
+            }
         """)
         self.txt_search.textChanged.connect(self.load_sales)
         toolbar_layout.addWidget(self.txt_search, stretch=3)
 
         self.cmb_payment = QComboBox()
-        self.cmb_payment.addItems(["All Payment Methods", "Cash", "Card", "GCash", "Maya"])
         self.cmb_payment.setFixedHeight(36)
+        self.cmb_payment.addItems([
+            "All Payment Methods",
+            "Cash",
+            "Card",
+            "GCash",
+            "Maya",
+        ])
         self.cmb_payment.setStyleSheet("""
             QComboBox {
-                padding: 6px 12px;
+                background-color: #f8fafc;
                 border: 1px solid #cbd5e1;
                 border-radius: 8px;
-                background-color: #ffffff;
-                font-size: 12px;
-                font-weight: 600;
+                padding: 0 12px;
+                font-size: 13px;
                 color: #0f172a;
             }
             QComboBox:focus { border-color: #2563eb; }
@@ -232,7 +246,7 @@ class SalesPage(QWidget):
             "PAYMENT METHOD",
             "ITEMS",
             "TOTAL DUE",
-            "STATUS",
+            "STATUS / RETURNS",
             "ACTIONS",
         ])
 
@@ -259,38 +273,31 @@ class SalesPage(QWidget):
                 padding: 8px 10px;
             }
             QTableWidget::item {
-                padding: 4px 8px;
+                padding: 6px 10px;
                 border-bottom: 1px solid #f1f5f9;
             }
         """)
 
         header = self.tbl_sales.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.Fixed)
-        header.setSectionResizeMode(6, QHeaderView.Fixed)
+        header.setSectionResizeMode(5, QHeaderView.Stretch)
+        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
 
-        self.tbl_sales.setColumnWidth(0, 195)
-        self.tbl_sales.setColumnWidth(5, 110)
-        self.tbl_sales.setColumnWidth(6, 135)
-
-        self.tbl_sales.setSelectionBehavior(QTableWidget.SelectRows)
-        self.tbl_sales.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tbl_sales.doubleClicked.connect(self._on_row_double_clicked)
         main_layout.addWidget(self.tbl_sales, stretch=1)
 
     def _on_chip_clicked(self, mode: str, combo_text: str):
         self._active_filter_chip = mode
         self._update_chip_styles()
-        self.cmb_payment.blockSignals(True)
         idx = self.cmb_payment.findText(combo_text)
         if idx >= 0:
             self.cmb_payment.setCurrentIndex(idx)
-        self.cmb_payment.blockSignals(False)
-        self.load_sales()
+        else:
+            self.load_sales()
 
     def _on_payment_combo_changed(self):
         txt = self.cmb_payment.currentText()
@@ -371,7 +378,7 @@ class SalesPage(QWidget):
                 txn_item.setData(Qt.UserRole, s)
                 self.tbl_sales.setItem(row, 0, txn_item)
 
-                # Date & Time (Clean readable time)
+                # Date & Time
                 formatted_time = self._format_datetime(s.created_at)
                 date_item = QTableWidgetItem(formatted_time)
                 date_item.setForeground(QColor("#64748b"))
@@ -405,7 +412,12 @@ class SalesPage(QWidget):
                 total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.tbl_sales.setItem(row, 4, total_item)
 
-                # Status Badge
+                # Status & Derived Return Badge Container
+                status_cell = QWidget()
+                status_layout = QHBoxLayout(status_cell)
+                status_layout.setContentsMargins(4, 0, 4, 0)
+                status_layout.setSpacing(6)
+
                 status_lbl = QLabel("COMPLETED")
                 status_lbl.setAlignment(Qt.AlignCenter)
                 status_lbl.setStyleSheet("""
@@ -414,10 +426,44 @@ class SalesPage(QWidget):
                     font-weight: 800;
                     background-color: #ecfdf5;
                     border: 1px solid #a7f3d0;
-                    border-radius: 8px;
+                    border-radius: 6px;
                     padding: 2px 8px;
                 """)
-                self.tbl_sales.setCellWidget(row, 5, status_lbl)
+                status_layout.addWidget(status_lbl)
+
+                # Query Return State if ReturnsService is available
+                if self._returns_service:
+                    try:
+                        sum_dto = self._returns_service.get_sale_return_summary(s.id, actor=self._user)
+                        if sum_dto.derived_state == "partial":
+                            ret_lbl = QLabel("PARTIAL RETURN")
+                            ret_lbl.setStyleSheet("""
+                                color: #b45309;
+                                font-size: 9px;
+                                font-weight: 800;
+                                background-color: #fffbeb;
+                                border: 1px solid #fde68a;
+                                border-radius: 6px;
+                                padding: 2px 6px;
+                            """)
+                            status_layout.addWidget(ret_lbl)
+                        elif sum_dto.derived_state == "full":
+                            ret_lbl = QLabel("FULLY RETURNED")
+                            ret_lbl.setStyleSheet("""
+                                color: #b91c1c;
+                                font-size: 9px;
+                                font-weight: 800;
+                                background-color: #fef2f2;
+                                border: 1px solid #fecaca;
+                                border-radius: 6px;
+                                padding: 2px 6px;
+                            """)
+                            status_layout.addWidget(ret_lbl)
+                    except Exception:
+                        pass
+
+                status_layout.addStretch()
+                self.tbl_sales.setCellWidget(row, 5, status_cell)
 
                 # Action Buttons (View Details + Print Receipt)
                 act_widget = QWidget()
@@ -479,7 +525,13 @@ class SalesPage(QWidget):
                 self._show_details(sale)
 
     def _show_details(self, sale: SaleResponseDTO):
-        dlg = SaleDetailsDialog(sale, self)
+        dlg = SaleDetailsDialog(
+            sale=sale,
+            returns_service=self._returns_service,
+            auth_service=self._auth_service,
+            current_user=self._user,
+            parent=self,
+        )
         dlg.exec()
 
     def _reprint_sale(self, sale: SaleResponseDTO):

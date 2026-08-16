@@ -67,6 +67,12 @@ DEFAULT_PERMISSIONS = {
     "audit": [
         ("view_audit_logs", "View Audit Logs"),
     ],
+    "expenses": [
+        ("view_expenses", "View Expenses"),
+        ("create_expenses", "Create Expenses"),
+        ("edit_expenses", "Edit Expenses"),
+        ("void_expenses", "Void Expenses"),
+    ],
     "shifts": [
         ("open_shift", "Open Cashier Shift"),
         ("close_shift", "Close Shift"),
@@ -87,11 +93,13 @@ ROLE_PERMISSIONS = {
         "view_settings", "edit_settings", "manage_backup",
         "view_audit_logs", "view_users", "create_users", "edit_users",
         "approve_shift_close",
+        "view_expenses", "create_expenses", "edit_expenses", "void_expenses",
     ],
     UserRoleEnum.CASHIER: [
         "pos_access", "pos_discount", "pos_hold_resume",
         "open_shift", "close_shift", "view_sales", "return_sales",
         "view_dashboard", "view_products", "view_inventory",
+        "view_expenses", "create_expenses",
     ],
     UserRoleEnum.INVENTORY_STAFF: [
         "view_dashboard", "view_products", "view_inventory",
@@ -102,7 +110,7 @@ ROLE_PERMISSIONS = {
         "view_dashboard", "view_products", "view_inventory",
         "view_sales", "view_reports", "export_reports",
         "view_audit_logs", "view_suppliers", "view_purchase_orders",
-        "view_users",
+        "view_users", "view_expenses",
     ],
 }
 

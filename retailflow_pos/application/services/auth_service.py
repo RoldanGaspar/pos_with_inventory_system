@@ -74,6 +74,52 @@ class AuthenticationService:
         logger.info(f"User logged in: {username}")
         return user, token
 
+    def verify_credentials(
+        self, username: str, password: str, required_permission: Optional[str] = None, ip_address: Optional[str] = None
+    ) -> User:
+        """
+        Verifies credentials for one-shot authorization (e.g. Manager Override)
+        without creating a new session token, without mutating last_login_at, and without altering active sessions.
+        Still tracks failed attempts and enforces account lockouts.
+        """
+        user = self.user_repo.get_by_username(username)
+        if user is None:
+            self.user_repo.record_login_attempt(
+                username=username, success=False, ip_address=ip_address,
+                failure_reason="User not found")
+            raise AuthenticationError("Invalid username or password.")
+
+        if not user.is_active:
+            raise AccountInactiveError("This account has been deactivated.")
+
+        if self.user_repo.is_locked_out(user):
+            self.user_repo.record_login_attempt(
+                username=username, success=False, ip_address=ip_address,
+                failure_reason="Account locked", user_id=user.id)
+            raise AccountLockedError(
+                f"Account is temporarily locked. Try again in {settings.lockout_minutes} minutes.")
+
+        if not verify_password(password, user.password_hash):
+            self.user_repo.register_failed_attempt(user)
+            self.user_repo.record_login_attempt(
+                username=username, success=False, ip_address=ip_address,
+                failure_reason="Incorrect password", user_id=user.id)
+            logger.warning(f"Failed override authorization for user: {username}")
+            raise AuthenticationError("Invalid username or password.")
+
+        if user.password_expires_at and user.password_expires_at < datetime.utcnow():
+            raise PasswordExpiredError(
+                "Your password has expired. Please change it before authorizing.")
+
+        self.user_repo.reset_failed_attempts(user)
+
+        if required_permission:
+            if not (user.is_admin() or user.has_permission(required_permission)):
+                raise AuthorizationError(f"User '{username}' does not have '{required_permission}' permission.")
+
+        logger.info(f"Credentials verified for one-shot override: {username}")
+        return user
+
     def logout(self, token: str) -> None:
         self.session_repo.invalidate_session(token)
         logger.info("User logged out")

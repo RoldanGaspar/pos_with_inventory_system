@@ -86,6 +86,7 @@ class SalesService:
                     product_id=product.id,
                     product_name=product.name,
                     unit_price=cart_item.unit_price,
+                    unit_cost=product.cost_price,
                     quantity=cart_item.quantity,
                     subtotal=cart_item.subtotal,
                 )
@@ -170,6 +171,7 @@ class SalesService:
                 product_id=item.product_id,
                 product_name=item.product_name,
                 unit_price=item.unit_price,
+                unit_cost=item.unit_cost,
                 quantity=item.quantity,
                 subtotal=item.subtotal,
             )
